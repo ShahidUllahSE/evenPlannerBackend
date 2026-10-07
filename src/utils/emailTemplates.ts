@@ -47,7 +47,7 @@ const qrBlock = (qr: string | null, ticket: string, border: string, text: string
   qr
     ? `<table role="presentation" align="center" cellpadding="0" cellspacing="0" style="margin:28px auto 8px;border:1px dashed ${border};border-radius:14px;">
         <tr><td style="padding:18px 22px;text-align:center;">
-          <img src="${qr}" width="168" height="168" alt="Entry QR code" style="display:block;margin:0 auto;" />
+          <img src="${qr}" width="240" height="240" alt="Entry QR code" style="display:block;margin:0 auto;max-width:100%;height:auto;" />
           <div style="${FONT}font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:${text};margin-top:10px;">Entry pass</div>
           <div style="font-family:JetBrains Mono,Consolas,monospace;font-size:15px;font-weight:600;color:${text};margin-top:2px;">${ticket}</div>
         </td></tr>

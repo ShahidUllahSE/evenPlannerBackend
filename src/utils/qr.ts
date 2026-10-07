@@ -5,6 +5,7 @@ import type { QrType } from '../constants/options';
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
 const TICKET_CODE_RE = /^EP-[A-Z2-9]{4}-[A-Z2-9]{4}$/;
+const TICKET_CODE_FIND_RE = /EP-[A-Z2-9]{4}-[A-Z2-9]{4}/;
 
 const randomChunk = (length: number) =>
   Array.from({ length }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
@@ -51,7 +52,7 @@ export interface ParsedQr {
 
 /** Reads any of the three QR formats, or a ticket code typed in by hand. */
 export const parseQrPayload = (raw: string): ParsedQr | null => {
-  const text = raw.trim();
+  const text = raw.trim().replace(/\u0000/g, '');
 
   if (text.startsWith('{')) {
     try {
@@ -64,42 +65,52 @@ export const parseQrPayload = (raw: string): ParsedQr | null => {
         signature: typeof data.s === 'string' ? data.s : undefined,
       };
     } catch {
-      return null;
+      // fall through — noisy scans sometimes wrap JSON
     }
   }
 
-  if (/^https?:\/\//i.test(text)) {
+  if (/^https?:\/\//i.test(text) || text.includes('://') || text.includes('/verify/')) {
     try {
-      const url = new URL(text);
+      const urlText = /^https?:\/\//i.test(text) ? text : text.replace(/^[^h]*?(https?:\/\/)/i, '$1');
+      const url = new URL(urlText);
       const code = decodeURIComponent(url.pathname.split('/').filter(Boolean).pop() ?? '');
-      if (!code) return null;
-      return {
-        ticketCode: code.toUpperCase(),
-        eventId: url.searchParams.get('e') ?? undefined,
-        signature: url.searchParams.get('s') ?? undefined,
-      };
+      if (code) {
+        return {
+          ticketCode: code.toUpperCase(),
+          eventId: url.searchParams.get('e') ?? undefined,
+          signature: url.searchParams.get('s') ?? undefined,
+        };
+      }
     } catch {
-      return null;
+      // fall through to ticket-code extraction
     }
   }
 
-  const code = text.toUpperCase();
-  return TICKET_CODE_RE.test(code) ? { ticketCode: code } : null;
+  const upper = text.toUpperCase();
+  if (TICKET_CODE_RE.test(upper)) return { ticketCode: upper };
+
+  // Phone cameras sometimes return surrounding junk — pull the ticket out.
+  const found = upper.match(TICKET_CODE_FIND_RE);
+  return found ? { ticketCode: found[0] } : null;
 };
 
+/** High-contrast black modules + wide quiet zone for phone cameras. */
 const QR_STYLE: Record<QrType, { dark: string; errorLevel: 'M' | 'H' }> = {
-  standard: { dark: '#0F1B2D', errorLevel: 'M' },
-  secure: { dark: '#1E3A5F', errorLevel: 'M' },
-  branded: { dark: '#0E7C7B', errorLevel: 'H' },
+  standard: { dark: '#000000', errorLevel: 'M' },
+  secure: { dark: '#000000', errorLevel: 'M' },
+  branded: { dark: '#000000', errorLevel: 'H' },
 };
 
-/** PNG of the QR, styled like the frontend, for email attachments. */
-export const renderQrPng = (type: QrType, payload: string, size = 336) =>
+/** Default guest-facing PNG size (email / MMS). Larger = easier phone scan. */
+export const GUEST_QR_SIZE = 512;
+
+/** PNG of the QR for email attachments and MMS media. */
+export const renderQrPng = (type: QrType, payload: string, size = GUEST_QR_SIZE) =>
   QRCode.toBuffer(payload, {
     type: 'png',
     width: size,
-    // Wider quiet zone — phones scan Standard tickets more reliably
-    margin: 3,
+    // Spec quiet zone is 4 modules — phones need this white border.
+    margin: 4,
     errorCorrectionLevel: QR_STYLE[type].errorLevel,
     color: { dark: QR_STYLE[type].dark, light: '#FFFFFF' },
   });
