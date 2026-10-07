@@ -102,3 +102,21 @@ export const renderQrPng = (type: QrType, payload: string, size = 336) =>
     errorCorrectionLevel: QR_STYLE[type].errorLevel,
     color: { dark: QR_STYLE[type].dark, light: '#FFFFFF' },
   });
+
+/** Short-lived signed URL so Twilio can fetch a guest QR PNG without login. */
+const signMediaToken = (inviteeId: string, exp: number) =>
+  createHmac('sha256', env.QR_SECRET).update(`mms-qr|${inviteeId}|${exp}`).digest('base64url');
+
+export const buildQrMediaUrl = (inviteeId: string, ttlSeconds = 60 * 60 * 24 * 7) => {
+  const exp = Math.floor(Date.now() / 1000) + ttlSeconds;
+  const sig = signMediaToken(inviteeId, exp);
+  return `${env.API_PUBLIC_BASE}/public/qr/${inviteeId}.png?exp=${exp}&sig=${sig}`;
+};
+
+export const verifyQrMediaToken = (inviteeId: string, expRaw: string, sig: string) => {
+  const exp = Number(expRaw);
+  if (!Number.isFinite(exp) || exp < Math.floor(Date.now() / 1000)) return false;
+  const expected = Buffer.from(signMediaToken(inviteeId, exp));
+  const given = Buffer.from(sig);
+  return expected.length === given.length && timingSafeEqual(expected, given);
+};

@@ -4,6 +4,7 @@ import { getManagedEvent, getVisibleEvent } from '../services/access.service';
 import { listEmailLogs, sendInvitations } from '../services/email.service';
 import * as eventService from '../services/event.service';
 import * as inviteeService from '../services/invitee.service';
+import { sendSmsInvitations } from '../services/sms.service';
 import { queryString } from '../utils/query';
 
 const eventId = (req: Request) => String(req.params.id);
@@ -87,6 +88,13 @@ export const sendEmailsController = async (req: Request, res: Response) => {
   const actor = currentUser(req);
   const event = await getManagedEvent(actor, eventId(req));
   const result = await sendInvitations(actor, event, req.body);
+  res.status(200).json({ success: true, ...result });
+};
+
+export const sendSmsController = async (req: Request, res: Response) => {
+  const actor = currentUser(req);
+  const event = await getManagedEvent(actor, eventId(req));
+  const result = await sendSmsInvitations(actor, event, req.body);
   res.status(200).json({ success: true, ...result });
 };
 

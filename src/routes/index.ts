@@ -2,6 +2,7 @@ import { Router } from 'express';
 import * as auth from '../controllers/auth.controller';
 import * as events from '../controllers/event.controller';
 import * as invitees from '../controllers/invitee.controller';
+import * as publicQr from '../controllers/publicQr.controller';
 import * as scans from '../controllers/scan.controller';
 import * as settings from '../controllers/settings.controller';
 import * as users from '../controllers/user.controller';
@@ -10,6 +11,7 @@ import { loginLimiter, scanLimiter } from '../middleware/rateLimit.middleware';
 import { validateBody } from '../middleware/validate.middleware';
 import { changePasswordSchema, loginSchema, updateProfileSchema } from '../validators/auth.schema';
 import { sendEmailSchema } from '../validators/email.schema';
+import { sendSmsSchema } from '../validators/sms.schema';
 import {
   assignScannersSchema,
   createEventSchema,
@@ -33,6 +35,9 @@ const admins = requireRole('admin');
 router.get('/health', (_req, res) => {
   res.json({ success: true, status: 'ok' });
 });
+
+// Signed QR PNG for Twilio MMS (no login — token in query)
+router.get('/public/qr/:inviteeId', publicQr.publicQrPngController);
 
 // Auth
 router.post('/auth/login', loginLimiter, validateBody(loginSchema), auth.loginController);
@@ -93,6 +98,9 @@ router.post('/events/:id/qr/regenerate', managers, validateBody(qrTypeSchema), e
 router.post('/events/:id/emails', managers, validateBody(sendEmailSchema), events.sendEmailsController);
 router.get('/events/:id/emails', managers, events.listEventEmailLogsController);
 router.get('/email-logs', managers, invitees.listEmailLogsController);
+
+// Invitation SMS (Twilio Messages API only — no voice/WhatsApp)
+router.post('/events/:id/sms', managers, validateBody(sendSmsSchema), events.sendSmsController);
 
 // Guests across events
 router.get('/invitees', managers, invitees.listInviteesController);
